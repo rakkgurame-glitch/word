@@ -14,13 +14,13 @@ local Config = {
     MaxWordLength = 100,
     AutoTypingEnabled = true,
 
-    TypingProfile = "medium",
+    TypingProfile = "balanced",
 
     Profiles = {
-        shprd     = { MinDelay = 25,  MaxDelay = 55,  PreferMinLen = 3,  PreferMaxLen = 6,  ThinkDelayMin = 200,  ThinkDelayMax = 800  },
-        medium = { MinDelay = 35,  MaxDelay = 75,  PreferMinLen = 4,  PreferMaxLen = 8,  ThinkDelayMin = 400,  ThinkDelayMax = 1200 },
-        long     = { MinDelay = 45,  MaxDelay = 95,  PreferMinLen = 5,  PreferMaxLen = 10, ThinkDelayMin = 600,  ThinkDelayMax = 1600 },
-        chaos    = { MinDelay = 55,  MaxDelay = 100,  PreferMinLen = 10, PreferMaxLen = 100, ThinkDelayMin = 100,  ThinkDelayMax = 500  }
+        fast     = { MinDelay = 25,  MaxDelay = 55,  MinWordLen = 1,  MaxWordLen = 6,  ThinkDelayMin = 200,  ThinkDelayMax = 800  },
+        balanced = { MinDelay = 35,  MaxDelay = 75,  MinWordLen = 1,  MaxWordLen = 8,  ThinkDelayMin = 400,  ThinkDelayMax = 1200 },
+        safe     = { MinDelay = 45,  MaxDelay = 95,  MinWordLen = 1,  MaxWordLen = 10, ThinkDelayMin = 600,  ThinkDelayMax = 1600 },
+        chaos    = { MinDelay = 20,  MaxDelay = 50,  MinWordLen = 1, MaxWordLen = 20, ThinkDelayMin = 100,  ThinkDelayMax = 500  }
     },
 
     ExtraBackspacesAfterClear = 3,
@@ -224,46 +224,30 @@ local function SelectWord(prefix)
     end
     
     UsedWords[prefix] = UsedWords[prefix] or {}
-    
-    -- First try: preferred length only
-    local preferredWords = {}
+    local available = {}
+
     for _, word in ipairs(pool) do
         local wordLength = #word
-        if not UsedWords[prefix][word] and wordLength >= profile.PreferMinLen and wordLength <= profile.PreferMaxLen then
-            table.insert(preferredWords, word)
+        if not UsedWords[prefix][word] and wordLength >= profile.MinWordLen and wordLength <= profile.MaxWordLen then
+            table.insert(available, word)
         end
     end
-    
-    -- Second try: all available words (1-100 chars)
-    local allAvailable = {}
-    if #preferredWords == 0 then
-        for _, word in ipairs(pool) do
-            if not UsedWords[prefix][word] then
-                table.insert(allAvailable, word)
-            end
-        end
-    end
-    
-    -- Use preferred if available, otherwise use any available
-    local available = #preferredWords > 0 and preferredWords or allAvailable
 
     if #available == 0 then
         SendNotification("⚠ All words used for: " .. prefix:upper() .. " (Reset needed)", 3)
         return nil
     end
 
-    -- Scoring system
-    local idealMinLength = #prefix + profile.PreferMinLen
-    local idealMaxLength = #prefix + profile.PreferMaxLen
+    local idealMinLength = #prefix + profile.MinWordLen
+    local idealMaxLength = #prefix + profile.MaxWordLen
     local idealLength = math.random(idealMinLength, idealMaxLength)
     
     local scored = {}
 
     for _, word in ipairs(available) do
         local score = 100 - math.abs(#word - idealLength)
-        -- Bonus for preferred length range
-        if #word >= profile.PreferMinLen and #word <= profile.PreferMaxLen then
-            score = score + 100  -- High bonus for preferred length
+        if #word >= profile.MinWordLen and #word <= profile.MaxWordLen then
+            score = score + 50
         end
         table.insert(scored, { Word = word, Score = score })
     end
@@ -405,7 +389,7 @@ local ProfileButton = Instance.new("TextButton")
 ProfileButton.Size = UDim2.new(0.48, -5, 0, 35)
 ProfileButton.Position = UDim2.new(0.52, 5, 0, 50)
 ProfileButton.BackgroundColor3 = Color3.fromRGB(100, 120, 220)
-ProfileButton.Text = "⚖️ MEDIUM"
+ProfileButton.Text = "⚡ BALANCED"
 ProfileButton.TextColor3 = Color3.new(1, 1, 1)
 ProfileButton.TextSize = 14
 ProfileButton.Font = Enum.Font.GothamBold
@@ -431,7 +415,7 @@ local ProfileInfoLabel = Instance.new("TextLabel")
 ProfileInfoLabel.Size = UDim2.new(1, 0, 0, 20)
 ProfileInfoLabel.Position = UDim2.new(0, 0, 0, 120)
 ProfileInfoLabel.BackgroundTransparency = 1
-ProfileInfoLabel.Text = "Prefer: 4-8 | Speed: 35-75ms"
+ProfileInfoLabel.Text = "Len: 4-8 | Speed: 35-75ms"
 ProfileInfoLabel.TextColor3 = Color3.fromRGB(150, 200, 255)
 ProfileInfoLabel.TextSize = 10
 ProfileInfoLabel.Font = Enum.Font.Gotham
@@ -450,9 +434,9 @@ AddHoverEffect(ProfileButton, Color3.fromRGB(100, 120, 220), Color3.fromRGB(120,
 local function UpdateProfileInfo()
     local profile = Config.Profiles[Config.TypingProfile]
     ProfileInfoLabel.Text = string.format(
-        "Prefer: %d-%d | Speed: %d-%dms",
-        profile.PreferMinLen,
-        profile.PreferMaxLen,
+        "Len: %d-%d | Speed: %d-%dms",
+        profile.MinWordLen,
+        profile.MaxWordLen,
         profile.MinDelay,
         profile.MaxDelay
     )
@@ -477,15 +461,15 @@ ResetButton.MouseButton1Click:Connect(function()
 end)
 
 ProfileButton.MouseButton1Click:Connect(function()
-    local profiles = {"short", "medium", "long", "chaos"}
+    local profiles = {"fast", "balanced", "safe", "chaos"}
     local current = table.find(profiles, Config.TypingProfile) or 2
     local nextIndex = (current % #profiles) + 1
     Config.TypingProfile = profiles[nextIndex]
     
     local profileEmojis = {
-        short = "⚡",
-        medium = "⚖️",
-        long = "🛡️",
+        fast = "⚡",
+        balanced = "⚖️",
+        safe = "🛡️",
         chaos = "💥"
     }
     
@@ -524,6 +508,5 @@ print("✅ WORD TYPER OP++ LOADED")
 print("🎯 Profile: " .. Config.TypingProfile)
 print("📝 Shortcut: Alt+T")
 print("🧠 Think Delay: ENABLED")
-print("📏 Dictionary: 1-100 chars (prefer filtered)")
 print("=====================================")
 SendNotification("Word Typer Loaded! Alt+T", 4)
